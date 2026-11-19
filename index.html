@@ -179,26 +179,40 @@
             background: var(--card); border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.03);
             overflow-x: auto; border: 1px solid #e2e8f0;
         }
-        table { width: 100%; border-collapse: collapse; min-width: 550px; }
-        th, td { border: 1px solid #e2e8f0; padding: 11px 14px; text-align: center; font-size: 14px; }
+        table { width: max-content; min-width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px 6px; text-align: center; font-size: 13px; }
         th { background: #f8fafc; font-weight: 600; color: #334155; position: relative; }
         td:first-child, th:first-child {
-            text-align: left; position: sticky; left: 0; background: var(--card); z-index: 2; min-width: 230px;
+            text-align: left; position: sticky; left: 0; background: var(--card); z-index: 2; min-width: 180px; max-width: 220px; padding: 8px 10px;
         }
         th:first-child { background: #f8fafc; z-index: 3; }
 
-        .date-header { cursor: pointer; min-width: 105px; transition: background 0.15s; }
+        .date-header { cursor: pointer; min-width: 64px; max-width: 78px; padding: 6px 4px !important; transition: background 0.15s; font-size: 12px; }
         .date-header:hover { background: #e0f2fe; }
         .note-indicator {
-            display: block; font-size: 11px; color: var(--primary); font-weight: 500;
-            max-width: 95px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 4px auto 0;
+            display: block; font-size: 10px; color: var(--primary); font-weight: 500;
+            max-width: 70px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px auto 0;
         }
 
         .grade-input {
-            width: 60px; text-align: center; padding: 7px; border: 1px solid transparent;
-            border-radius: 8px; font-weight: 600; font-size: 14px; background: transparent; transition: all 0.15s;
+            width: 42px; text-align: center; padding: 5px 2px; border: 1px solid transparent;
+            border-radius: 6px; font-weight: 600; font-size: 13px; background: transparent; transition: all 0.15s;
         }
-        .grade-input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15); }
+        .grade-input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15); width: 48px; }
+
+        /* На широких экранах — ещё плотнее, больше дат на экран */
+        @media (min-width: 1100px) {
+            #app-screen { max-width: 1600px; }
+            .date-header { min-width: 56px; max-width: 68px; }
+            .grade-input { width: 38px; font-size: 12px; padding: 4px 1px; }
+            .note-indicator { max-width: 60px; font-size: 9px; }
+            td:first-child, th:first-child { min-width: 160px; }
+        }
+        @media (min-width: 1400px) {
+            #app-screen { max-width: 1800px; }
+            .date-header { min-width: 52px; max-width: 62px; }
+            .grade-input { width: 36px; }
+        }
 
         .g-5 { color: #166534; background: #dcfce7; }
         .g-4 { color: #1e40af; background: #dbeafe; }
@@ -470,6 +484,7 @@
     let currentUser = null;
     let activeSubjectId = null;
     let activeSubgroupFilter = "all"; // "all" или id подгруппы
+    let skipRenderFromLocalWrite = false; // не сбрасывать горизонтальный скролл после оценки
 
     const defaultData = {
         students: [
@@ -567,6 +582,12 @@
 
             if (!activeSubjectId && dbData.subjects.length > 0) {
                 activeSubjectId = dbData.subjects[0].id;
+            }
+
+            // Локальная смена оценки: не перерисовываем таблицы (иначе сбивается горизонтальный скролл)
+            if (skipRenderFromLocalWrite) {
+                skipRenderFromLocalWrite = false;
+                return;
             }
             checkSessionAndRender();
         }, (err) => {
@@ -917,7 +938,13 @@
             `;
         }
 
+        // Сохраняем горизонтальный скролл таблиц (на случай полной перерисовки)
+        const prevScrolls = Array.from(document.querySelectorAll('#journal-sections-wrapper .table-container')).map(el => el.scrollLeft);
         wrapper.innerHTML = sectionsHtml;
+        const newContainers = document.querySelectorAll('#journal-sections-wrapper .table-container');
+        newContainers.forEach((el, i) => {
+            if (prevScrolls[i] != null) el.scrollLeft = prevScrolls[i];
+        });
     }
 
     function updateGrade(subId, key, inputEl) {
@@ -930,6 +957,8 @@
         } else {
             delete sub.grades[key];
         }
+        // Не перерисовывать весь журнал после локальной оценки (иначе таблица прыгает влево)
+        skipRenderFromLocalWrite = true;
         updateCloudDB();
         inputEl.className = 'grade-input ' + getGradeClass(val);
     }
