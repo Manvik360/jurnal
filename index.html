@@ -24,7 +24,7 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
+        try { getAnalytics(app); } catch (e) {}
         const db = getDatabase(app);
 
         window.FB_DB = db;
@@ -34,6 +34,10 @@
 
         if (window.initAppAfterFirebase) {
             window.initAppAfterFirebase();
+        } else {
+            window.addEventListener('DOMContentLoaded', () => {
+                if (window.initAppAfterFirebase) window.initAppAfterFirebase();
+            });
         }
     </script>
 
@@ -169,6 +173,7 @@
         }
         .pill-lecture { background: var(--lecture-bg); color: var(--lecture-text); }
         .pill-practice { background: var(--practice-bg); color: var(--practice-text); }
+        .pill-subgroup { background: var(--subgroup-bg); color: var(--subgroup-text); }
 
         .table-container {
             background: var(--card); border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.03);
@@ -352,6 +357,13 @@
                 <option value="practice">Только Практика</option>
             </select>
         </div>
+        <div class="form-group">
+            <label style="display:flex; align-items:center; gap:10px; font-weight:600;">
+                <input type="checkbox" id="new-subj-by-subgroups" style="width:auto; margin:0;">
+                Практика идёт по подгруппам
+            </label>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">У каждой подгруппы будут свои даты практики. Сначала создайте подгруппы.</div>
+        </div>
         <div class="modal-footer">
             <button class="btn btn-outline btn-sm" onclick="closeModals()">Отмена</button>
             <button class="btn btn-sm" onclick="saveNewSubject()">Создать</button>
@@ -383,14 +395,19 @@
         </div>
         <div class="form-group" id="date-type-group">
             <label>Раздел журнала</label>
-            <select id="date-type">
+            <select id="date-type" onchange="onDateTypeChange()">
                 <option value="lecture">Лекция</option>
                 <option value="practice">Практика</option>
             </select>
         </div>
+        <div class="form-group" id="date-subgroup-group" style="display:none;">
+            <label>Подгруппа (свои даты)</label>
+            <select id="date-subgroup"></select>
+            <div style="font-size:12px; color:var(--muted); margin-top:6px;">Дата практики будет только у этой подгруппы</div>
+        </div>
         <div class="form-group">
             <label>Примечание к дате (тема, контрольная и т.д.)</label>
-            <input type="text" id="date-note" placeholder="Например: Лабораторная №1 (подгр. 1)">
+            <input type="text" id="date-note" placeholder="Например: Лабораторная №1">
         </div>
         <div class="modal-footer" style="justify-content: space-between;">
             <button class="btn btn-danger btn-sm" id="btn-delete-date" onclick="deleteDateColumn()" style="display:none;">Удалить дату</button>
@@ -447,7 +464,7 @@
 
 <script>
     const ADMIN_PASS = "MAXCARTA360";
-    const SESSION_KEY = "journal_session_584_v2";
+    const SESSION_KEY = "journal_session_584_v3";
 
     let dbData = null;
     let currentUser = null;
@@ -470,6 +487,7 @@
                 id: "sub1",
                 name: "Программирование",
                 mode: "both",
+                practiceBySubgroups: false,
                 dates: [
                     { id: "d1", date: "2026-11-10", type: "lecture", note: "Введение в ООП" },
                     { id: "d1_2", date: "2026-11-17", type: "lecture", note: "Наследование" },
@@ -487,6 +505,7 @@
                 id: "sub2",
                 name: "Физкультура",
                 mode: "practice",
+                practiceBySubgroups: false,
                 dates: [
                     { id: "d4", date: "2026-11-11", type: "practice", note: "Нормативы: бег" },
                     { id: "d5", date: "2026-11-18", type: "practice", note: "Волейбол" }
@@ -502,33 +521,70 @@
     };
 
     // === Firebase init ===
+    let firebaseConnected = false;
+
+    function ensureDbShape(data) {
+        if (!data || typeof data !== 'object') {
+            return JSON.parse(JSON.stringify(defaultData));
+        }
+        if (!Array.isArray(data.students)) data.students = [];
+        if (!Array.isArray(data.subgroups)) data.subgroups = [];
+        if (!Array.isArray(data.subjects)) data.subjects = [];
+        data.subjects.forEach(sub => {
+            if (!Array.isArray(sub.dates)) sub.dates = [];
+            if (!sub.grades || typeof sub.grades !== 'object') sub.grades = {};
+            if (typeof sub.practiceBySubgroups !== 'boolean') sub.practiceBySubgroups = false;
+            sub.dates.forEach(d => {
+                if (d.subgroupId === undefined) d.subgroupId = null;
+            });
+        });
+        data.subgroups.forEach(sg => {
+            if (!Array.isArray(sg.studentIds)) sg.studentIds = [];
+        });
+        return data;
+    }
+
     window.initAppAfterFirebase = function() {
+        if (!window.FB_DB || !window.FB_ref || !window.FB_onValue) {
+            document.getElementById('welcome-subtitle').textContent = "Ошибка загрузки Firebase SDK";
+            document.getElementById('login-forms').style.display = 'block';
+            dbData = ensureDbShape(null);
+            return;
+        }
+
         const dbRef = window.FB_ref(window.FB_DB, 'journal584');
 
         window.FB_onValue(dbRef, (snapshot) => {
+            firebaseConnected = true;
             const val = snapshot.val();
-            if (val && val.students) {
-                dbData = val;
-                // миграция: если нет subgroups — добавим
-                if (!dbData.subgroups) dbData.subgroups = [];
+            // НЕ перезаписываем демо-данными, если студенты просто пустые
+            if (val && typeof val === 'object') {
+                dbData = ensureDbShape(val);
             } else {
-                dbData = JSON.parse(JSON.stringify(defaultData));
+                dbData = ensureDbShape(null);
                 window.FB_set(dbRef, dbData);
             }
 
-            if (!activeSubjectId && dbData.subjects && dbData.subjects.length > 0) {
+            if (!activeSubjectId && dbData.subjects.length > 0) {
                 activeSubjectId = dbData.subjects[0].id;
             }
-
             checkSessionAndRender();
         }, (err) => {
             console.error("Firebase error:", err);
-            document.getElementById('welcome-subtitle').textContent = "Ошибка подключения к базе. Проверьте правила Firebase.";
-            // fallback на демо
-            dbData = JSON.parse(JSON.stringify(defaultData));
+            firebaseConnected = true;
+            document.getElementById('welcome-subtitle').textContent = "Ошибка: " + (err.message || "нет доступа к базе");
+            dbData = ensureDbShape(null);
             document.getElementById('login-forms').style.display = 'block';
         });
     };
+
+    setTimeout(function() {
+        if (!firebaseConnected) {
+            document.getElementById('welcome-subtitle').textContent = "Не удалось подключиться к базе. Проверьте интернет и Rules.";
+            document.getElementById('login-forms').style.display = 'block';
+            if (!dbData) dbData = ensureDbShape(null);
+        }
+    }, 8000);
 
     function updateCloudDB() {
         if (!window.FB_DB) return;
@@ -642,16 +698,27 @@
         return '';
     }
 
-    function getFilteredStudents() {
+    function getSubgroupName(sgId) {
+        if (!sgId) return '';
+        const sg = (dbData.subgroups || []).find(s => s.id === sgId);
+        return sg ? sg.name : '';
+    }
+
+    function getStudentsForTable(forcedSubgroupId) {
         const all = dbData.students || [];
+        if (forcedSubgroupId) {
+            const sg = (dbData.subgroups || []).find(s => s.id === forcedSubgroupId);
+            if (!sg) return [];
+            return all.filter(st => (sg.studentIds || []).includes(st.id));
+        }
         if (activeSubgroupFilter === "all") return all;
         const sg = (dbData.subgroups || []).find(s => s.id === activeSubgroupFilter);
         if (!sg) return all;
         return all.filter(st => (sg.studentIds || []).includes(st.id));
     }
 
-    function buildTableHtml(currentSub, datesList, emptyText) {
-        const students = getFilteredStudents();
+    function buildTableHtml(currentSub, datesList, emptyText, forcedSubgroupId) {
+        const students = getStudentsForTable(forcedSubgroupId || null);
         let html = '<div class="table-container"><table><thead><tr><th>ФИО Студента</th>';
         datesList.forEach(d => {
             const noteHtml = d.note
@@ -665,7 +732,22 @@
         html += '</tr></thead><tbody>';
 
         if (students.length === 0) {
-            html += `<tr><td colspan="${datesList.length + 1}" class="empty-hint">${activeSubgroupFilter === "all" ? "Список студентов пуст" : "В этой подгруппе нет студентов"}</td></tr>`;
+            const msg = forcedSubgroupId || activeSubgroupFilter !== "all"
+                ? "В этой подгруппе нет студентов"
+                : "Список студентов пуст";
+            html += `<tr><td colspan="${Math.max(datesList.length + 1, 2)}" class="empty-hint">${datesList.length === 0 ? emptyText : msg}</td></tr>`;
+        } else if (datesList.length === 0) {
+            students.forEach((st, idx) => {
+                html += `<tr>
+                    <td>
+                        <div class="student-row-ctrl">
+                            <span><strong>${idx + 1}.</strong> ${st.name}</span>
+                            <button class="del-icon" title="Удалить студента" onclick="deleteStudent('${st.id}')">✕</button>
+                        </div>
+                    </td>
+                    <td style="color:var(--muted); font-size:13px;">${emptyText}</td>
+                </tr>`;
+            });
         } else {
             students.forEach((st, idx) => {
                 html += `<tr>
@@ -675,22 +757,18 @@
                             <button class="del-icon" title="Удалить студента" onclick="deleteStudent('${st.id}')">✕</button>
                         </div>
                     </td>`;
-                if (datesList.length === 0) {
-                    html += `<td style="color:var(--muted); font-size:13px;">${emptyText}</td>`;
-                } else {
-                    datesList.forEach(d => {
-                        const key = `${st.id}_${d.id}`;
-                        const val = (currentSub.grades && currentSub.grades[key]) || '';
-                        const colorClass = getGradeClass(val);
-                        html += `<td>
-                            <input class="grade-input ${colorClass}"
-                                   value="${val}"
-                                   maxlength="12"
-                                   placeholder="—"
-                                   onchange="updateGrade('${currentSub.id}', '${key}', this)">
-                        </td>`;
-                    });
-                }
+                datesList.forEach(d => {
+                    const key = `${st.id}_${d.id}`;
+                    const val = (currentSub.grades && currentSub.grades[key]) || '';
+                    const colorClass = getGradeClass(val);
+                    html += `<td>
+                        <input class="grade-input ${colorClass}"
+                               value="${val}"
+                               maxlength="12"
+                               placeholder="—"
+                               onchange="updateGrade('${currentSub.id}', '${key}', this)">
+                    </td>`;
+                });
                 html += '</tr>';
             });
         }
@@ -732,7 +810,8 @@
         (dbData.subjects || []).forEach(sub => {
             const btn = document.createElement('button');
             btn.className = 'subj-btn' + (sub.id === activeSubjectId ? ' active' : '');
-            const modeLabel = sub.mode === 'practice' ? 'Практика' : 'Лек + Прак';
+            let modeLabel = sub.mode === 'practice' ? 'Практика' : 'Лек + Прак';
+            if (sub.practiceBySubgroups) modeLabel = sub.mode === 'practice' ? 'Прак. по подгр.' : 'Лек+Прак подгр.';
             btn.innerHTML = `${sub.name} <span class="subj-type-tag">${modeLabel}</span>`;
             btn.onclick = () => { activeSubjectId = sub.id; activeSubgroupFilter = "all"; renderAdmin(); };
             bar.appendChild(btn);
@@ -744,6 +823,9 @@
         addSubBtn.textContent = '+ Добавить дисциплину';
         addSubBtn.onclick = () => {
             document.getElementById('new-subj-name').value = '';
+            document.getElementById('new-subj-mode').value = 'both';
+            const cb = document.getElementById('new-subj-by-subgroups');
+            if (cb) cb.checked = false;
             document.getElementById('modal-subject').style.display = 'flex';
         };
         bar.appendChild(addSubBtn);
@@ -761,8 +843,9 @@
 
         controls.style.display = 'flex';
         document.getElementById('current-subject-title').textContent = currentSub.name;
-        document.getElementById('current-subject-mode').textContent =
-            currentSub.mode === 'practice' ? '(Формат: только практика)' : '(Формат: лекции и практика)';
+        let modeText = currentSub.mode === 'practice' ? '(Только практика)' : '(Лекции и практика)';
+        if (currentSub.practiceBySubgroups) modeText += ' · практика по подгруппам';
+        document.getElementById('current-subject-mode').textContent = modeText;
 
         document.getElementById('btn-add-lecture').style.display = currentSub.mode === 'practice' ? 'none' : 'inline-block';
 
@@ -775,8 +858,6 @@
 
         if (currentSub.mode === 'both') {
             const lectureDates = currentSub.dates.filter(d => d.type === 'lecture');
-            const practiceDates = currentSub.dates.filter(d => d.type !== 'lecture');
-
             sectionsHtml += `
                 <div class="section-block">
                     <div class="section-header">
@@ -785,31 +866,53 @@
                             <span class="section-pill pill-lecture">${lectureDates.length} зан.</span>
                         </div>
                     </div>
-                    ${buildTableHtml(currentSub, lectureDates, 'Нет дат лекций')}
+                    ${buildTableHtml(currentSub, lectureDates, 'Нет дат лекций', null)}
                 </div>
             `;
+        }
 
+        if (currentSub.practiceBySubgroups) {
+            const subgroups = dbData.subgroups || [];
+            if (subgroups.length === 0) {
+                sectionsHtml += `
+                    <div class="section-block">
+                        <div class="section-header">
+                            <div class="section-title"><span>Практика по подгруппам</span></div>
+                        </div>
+                        <div class="table-container"><p class="empty-hint">Создайте подгруппы и добавьте даты практики для каждой.</p></div>
+                    </div>
+                `;
+            } else {
+                const list = activeSubgroupFilter === 'all'
+                    ? subgroups
+                    : subgroups.filter(s => s.id === activeSubgroupFilter);
+                list.forEach(sg => {
+                    const practiceDates = currentSub.dates.filter(d => d.type === 'practice' && d.subgroupId === sg.id);
+                    sectionsHtml += `
+                        <div class="section-block">
+                            <div class="section-header">
+                                <div class="section-title">
+                                    <span>Практика — ${sg.name}</span>
+                                    <span class="section-pill pill-subgroup">${practiceDates.length} зан.</span>
+                                </div>
+                            </div>
+                            ${buildTableHtml(currentSub, practiceDates, 'Нет дат для этой подгруппы', sg.id)}
+                        </div>
+                    `;
+                });
+            }
+        } else {
+            const practiceDates = currentSub.dates.filter(d => d.type === 'practice' || (currentSub.mode === 'practice' && d.type !== 'lecture'));
+            const title = currentSub.mode === 'practice' ? 'Практические занятия' : 'Практика';
             sectionsHtml += `
                 <div class="section-block">
                     <div class="section-header">
                         <div class="section-title">
-                            <span>Практика</span>
+                            <span>${title}</span>
                             <span class="section-pill pill-practice">${practiceDates.length} зан.</span>
                         </div>
                     </div>
-                    ${buildTableHtml(currentSub, practiceDates, 'Нет дат практик')}
-                </div>
-            `;
-        } else {
-            sectionsHtml += `
-                <div class="section-block">
-                    <div class="section-header">
-                        <div class="section-title">
-                            <span>Практические занятия</span>
-                            <span class="section-pill pill-practice">${currentSub.dates.length} зан.</span>
-                        </div>
-                    </div>
-                    ${buildTableHtml(currentSub, currentSub.dates, 'Нет дат практик')}
+                    ${buildTableHtml(currentSub, practiceDates, 'Нет дат практик', null)}
                 </div>
             `;
         }
@@ -834,22 +937,27 @@
     function saveNewSubject() {
         const name = document.getElementById('new-subj-name').value.trim();
         const mode = document.getElementById('new-subj-mode').value;
+        const bySg = !!(document.getElementById('new-subj-by-subgroups') && document.getElementById('new-subj-by-subgroups').checked);
         if (!name) return alert("Введите название дисциплины");
 
+        if (bySg && (!(dbData.subgroups) || dbData.subgroups.length === 0)) {
+            if (!confirm("Подгрупп ещё нет. Создать предмет всё равно? Даты практики добавите после создания подгрупп.")) return;
+        }
+
         const today = new Date().toISOString().split('T')[0];
-        const initialDates = mode === 'both'
-            ? [
-                { id: 'd_l_' + Date.now(), date: today, type: 'lecture', note: '' },
-                { id: 'd_p_' + (Date.now() + 1), date: today, type: 'practice', note: '' }
-              ]
-            : [
-                { id: 'd_p_' + Date.now(), date: today, type: 'practice', note: '' }
-              ];
+        let initialDates = [];
+        if (mode === 'both') {
+            initialDates.push({ id: 'd_l_' + Date.now(), date: today, type: 'lecture', note: '', subgroupId: null });
+        }
+        if (!bySg) {
+            initialDates.push({ id: 'd_p_' + (Date.now() + 1), date: today, type: 'practice', note: '', subgroupId: null });
+        }
 
         const newSub = {
             id: 'sub_' + Date.now(),
             name,
             mode,
+            practiceBySubgroups: bySg,
             dates: initialDates,
             grades: {}
         };
@@ -883,6 +991,9 @@
         const name = document.getElementById('new-student-name').value.trim();
         if (!name) return alert("Введите Фамилию и Имя");
         if (!dbData.students) dbData.students = [];
+        if (dbData.students.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+            return alert("Студент с таким ФИО уже есть");
+        }
         dbData.students.push({ id: 'st_' + Date.now(), name });
         updateCloudDB();
         closeModals();
@@ -903,6 +1014,35 @@
         }
     }
 
+    function fillSubgroupSelect(selectedId) {
+        const sel = document.getElementById('date-subgroup');
+        const subgroups = dbData.subgroups || [];
+        sel.innerHTML = '';
+        if (subgroups.length === 0) {
+            sel.innerHTML = '<option value="">Нет подгрупп</option>';
+            return;
+        }
+        subgroups.forEach(sg => {
+            const opt = document.createElement('option');
+            opt.value = sg.id;
+            opt.textContent = sg.name;
+            if (selectedId && selectedId === sg.id) opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+
+    function onDateTypeChange() {
+        const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        const typeVal = document.getElementById('date-type').value;
+        const sgGroup = document.getElementById('date-subgroup-group');
+        if (sub && sub.practiceBySubgroups && typeVal === 'practice') {
+            sgGroup.style.display = 'block';
+            fillSubgroupSelect();
+        } else {
+            sgGroup.style.display = 'none';
+        }
+    }
+
     function openAddDateModal(defaultType = 'practice') {
         const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
         if (!sub) return;
@@ -913,8 +1053,18 @@
         document.getElementById('btn-delete-date').style.display = "none";
 
         const typeGroup = document.getElementById('date-type-group');
-        typeGroup.style.display = sub.mode === 'practice' ? 'none' : 'block';
-        document.getElementById('date-type').value = sub.mode === 'practice' ? 'practice' : defaultType;
+        if (sub.mode === 'practice') {
+            typeGroup.style.display = 'none';
+            document.getElementById('date-type').value = 'practice';
+        } else {
+            typeGroup.style.display = 'block';
+            document.getElementById('date-type').value = defaultType;
+        }
+
+        onDateTypeChange();
+        if (sub.practiceBySubgroups && defaultType === 'practice' && activeSubgroupFilter !== 'all') {
+            fillSubgroupSelect(activeSubgroupFilter);
+        }
         document.getElementById('modal-date').style.display = 'flex';
     }
 
@@ -932,9 +1082,15 @@
         const typeGroup = document.getElementById('date-type-group');
         if (sub.mode === 'practice') {
             typeGroup.style.display = 'none';
+            document.getElementById('date-type').value = 'practice';
         } else {
             typeGroup.style.display = 'block';
             document.getElementById('date-type').value = dObj.type;
+        }
+
+        onDateTypeChange();
+        if (sub.practiceBySubgroups && dObj.type === 'practice') {
+            fillSubgroupSelect(dObj.subgroupId);
         }
         document.getElementById('modal-date').style.display = 'flex';
     }
@@ -950,6 +1106,12 @@
 
         if (!dateVal) return alert("Выберите дату");
 
+        let subgroupId = null;
+        if (sub.practiceBySubgroups && typeVal === 'practice') {
+            subgroupId = document.getElementById('date-subgroup').value || null;
+            if (!subgroupId) return alert("Выберите подгруппу для этой даты практики");
+        }
+
         if (!sub.dates) sub.dates = [];
 
         if (editId) {
@@ -958,13 +1120,15 @@
                 dObj.date = dateVal;
                 dObj.type = typeVal;
                 dObj.note = noteVal;
+                dObj.subgroupId = (typeVal === 'practice' && sub.practiceBySubgroups) ? subgroupId : null;
             }
         } else {
             sub.dates.push({
                 id: 'd_' + Date.now(),
                 date: dateVal,
                 type: typeVal,
-                note: noteVal
+                note: noteVal,
+                subgroupId: (typeVal === 'practice' && sub.practiceBySubgroups) ? subgroupId : null
             });
         }
 
@@ -1110,10 +1274,17 @@
         }).join('');
     }
 
+    function getStudentSubgroupIds(stId) {
+        return (dbData.subgroups || [])
+            .filter(sg => (sg.studentIds || []).includes(stId))
+            .map(sg => sg.id);
+    }
+
     function renderStudentView() {
         const grid = document.getElementById('student-grades-grid');
         grid.innerHTML = '';
         const stId = currentUser.student.id;
+        const mySgIds = getStudentSubgroupIds(stId);
 
         if (!dbData.subjects || dbData.subjects.length === 0) {
             grid.innerHTML = '<p style="color:var(--muted);">Пока не добавлено ни одной дисциплины.</p>';
@@ -1126,27 +1297,54 @@
             const card = document.createElement('div');
             card.className = 'subj-card';
 
-            const modeText = sub.mode === 'practice' ? 'Только практика' : 'Лекции и практика';
+            let modeText = sub.mode === 'practice' ? 'Только практика' : 'Лекции и практика';
+            if (sub.practiceBySubgroups) modeText += ' · по подгруппам';
+
             let bodyHtml = '';
 
             if (sub.mode === 'both') {
                 const lectures = sub.dates.filter(d => d.type === 'lecture');
-                const practices = sub.dates.filter(d => d.type !== 'lecture');
-                bodyHtml = `
+                bodyHtml += `
                     <div class="student-sub-row">
                         <span class="student-sub-label">Лекции</span>
                         <div class="grades-list">${buildStudentChips(stId, sub, lectures)}</div>
                     </div>
+                `;
+            }
+
+            if (sub.practiceBySubgroups) {
+                const myPractice = sub.dates.filter(d =>
+                    d.type === 'practice' && d.subgroupId && mySgIds.includes(d.subgroupId)
+                );
+                const bySg = {};
+                myPractice.forEach(d => {
+                    if (!bySg[d.subgroupId]) bySg[d.subgroupId] = [];
+                    bySg[d.subgroupId].push(d);
+                });
+                const sgIds = Object.keys(bySg);
+                if (sgIds.length === 0) {
+                    bodyHtml += `
+                        <div class="student-sub-row">
+                            <span class="student-sub-label">Практика</span>
+                            <div class="grades-list"><span style="font-size:13px; color:var(--muted);">Нет занятий вашей подгруппы</span></div>
+                        </div>
+                    `;
+                } else {
+                    sgIds.forEach(sgId => {
+                        bodyHtml += `
+                            <div class="student-sub-row">
+                                <span class="student-sub-label">Практика — ${getSubgroupName(sgId)}</span>
+                                <div class="grades-list">${buildStudentChips(stId, sub, bySg[sgId])}</div>
+                            </div>
+                        `;
+                    });
+                }
+            } else {
+                const practices = sub.dates.filter(d => d.type === 'practice' || (sub.mode === 'practice' && d.type !== 'lecture'));
+                bodyHtml += `
                     <div class="student-sub-row">
                         <span class="student-sub-label">Практика</span>
                         <div class="grades-list">${buildStudentChips(stId, sub, practices)}</div>
-                    </div>
-                `;
-            } else {
-                bodyHtml = `
-                    <div class="student-sub-row">
-                        <span class="student-sub-label">Практика</span>
-                        <div class="grades-list">${buildStudentChips(stId, sub, sub.dates)}</div>
                     </div>
                 `;
             }
