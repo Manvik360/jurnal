@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Электронный журнал — Группа 584 (Онлайн)</title>
+    <!-- Telegram Web App SDK (опционально) -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Firebase SDK (Modular v13) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-analytics.js";
+        import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCh5QSgaMAMEWhxIR3fd_kdNgySFQN6zFo",
+            authDomain: "jornual584.firebaseapp.com",
+            databaseURL: "https://jornual584-default-rtdb.firebaseio.com",
+            projectId: "jornual584",
+            storageBucket: "jornual584.firebasestorage.app",
+            messagingSenderId: "221386865273",
+            appId: "1:221386865273:web:9104e69eb4990e620632a8",
+            measurementId: "G-BH63TEYWK2"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+
+        window.FB_DB = db;
+        window.FB_ref = ref;
+        window.FB_onValue = onValue;
+        window.FB_set = set;
+
+        if (window.initAppAfterFirebase) {
+            window.initAppAfterFirebase();
+        }
+    </script>
+
+    <style>
+        :root {
+            --primary: #1d4ed8;
+            --primary-hover: #1e40af;
+            --primary-light: #eff6ff;
+            --bg: #f0f4f8;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: #cbd5e1;
+            --danger: #ef4444;
+            --success: #10b981;
+            --lecture-bg: #dbeafe;
+            --lecture-text: #1e40af;
+            --practice-bg: #dcfce7;
+            --practice-text: #166534;
+            --subgroup-bg: #fef3c7;
+            --subgroup-text: #92400e;
+        }
+
+        * { box-sizing: border-box; font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body { margin: 0; background: var(--bg); color: var(--text); }
+
+        #loading-screen {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        }
+        .login-card {
+            background: var(--card);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(30, 58, 138, 0.25);
+            width: 100%;
+            max-width: 420px;
+        }
+        .login-card h1 { margin: 0 0 6px; font-size: 26px; text-align: center; color: #1e3a8a; font-weight: 700; }
+        .login-card p { margin: 0 0 28px; color: var(--muted); text-align: center; font-size: 14px; }
+        .tabs { display: flex; gap: 6px; margin-bottom: 24px; background: var(--primary-light); padding: 5px; border-radius: 12px; }
+        .tab {
+            flex: 1; padding: 10px; border: none; background: transparent;
+            border-radius: 9px; cursor: pointer; font-weight: 600; color: var(--muted); transition: all 0.2s;
+        }
+        .tab.active { background: var(--card); color: var(--primary); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .form-group { margin-bottom: 18px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: #334155; }
+        input, select {
+            width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+            border-radius: 10px; font-size: 14px; outline: none; transition: all 0.2s; background: #fff;
+        }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15); }
+        .btn {
+            width: 100%; padding: 12px; border: none; border-radius: 10px;
+            background: var(--primary); color: white; font-weight: 600; font-size: 14px;
+            cursor: pointer; transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 12px rgba(29, 78, 216, 0.2);
+        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn:active { transform: scale(0.99); }
+        .btn-sm { width: auto; padding: 8px 16px; font-size: 13px; box-shadow: none; }
+        .btn-danger { background: var(--danger); box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2); }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); box-shadow: none; }
+        .btn-outline:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+        .error-msg { color: var(--danger); font-size: 13px; margin-top: 12px; text-align: center; display: none; font-weight: 500; }
+
+        #app-screen { display: none; max-width: 1320px; margin: 0 auto; padding: 24px; }
+        header {
+            display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+            gap: 16px; background: var(--card); padding: 18px 28px; border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); margin-bottom: 24px;
+            border: 1px solid #e2e8f0;
+        }
+        .header-title { display: flex; align-items: center; gap: 14px; }
+        .header-title h2 { color: #1e3a8a; margin: 0; }
+        .badge {
+            padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+            background: var(--primary-light); color: var(--primary); border: 1px solid #bfdbfe;
+        }
+
+        .subjects-bar {
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px;
+        }
+        .subj-btn {
+            padding: 10px 18px; border-radius: 12px; border: 1px solid var(--border);
+            background: var(--card); cursor: pointer; font-weight: 500; font-size: 14px;
+            display: flex; align-items: center; gap: 10px; transition: all 0.2s; color: #334155;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+        .subj-btn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+        .subj-btn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 10px rgba(29, 78, 216, 0.25); }
+        .subj-type-tag { font-size: 11px; opacity: 0.9; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,0.06); }
+        .subj-btn.active .subj-type-tag { background: rgba(255,255,255,0.25); }
+
+        .admin-panel {
+            background: var(--card); padding: 18px 24px; border-radius: 16px;
+            margin-bottom: 20px; border: 1px solid #e2e8f0;
+            display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+        }
+        .admin-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+        .filter-bar {
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px;
+            padding: 12px 16px; background: var(--card); border-radius: 12px; border: 1px solid #e2e8f0;
+        }
+        .filter-bar label { font-size: 13px; font-weight: 600; color: var(--muted); margin-right: 4px; }
+        .filter-chip {
+            padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+            background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; transition: 0.15s;
+        }
+        .filter-chip:hover { border-color: var(--primary); color: var(--primary); }
+        .filter-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .filter-chip.subgroup { background: var(--subgroup-bg); color: var(--subgroup-text); border-color: #fcd34d; }
+        .filter-chip.subgroup.active { background: #f59e0b; color: white; border-color: #f59e0b; }
+
+        .section-block { margin-bottom: 28px; }
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 10px; padding: 0 4px;
+        }
+        .section-title {
+            font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px; color: #1e3a8a;
+        }
+        .section-pill {
+            font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 700; text-transform: uppercase;
+        }
+        .pill-lecture { background: var(--lecture-bg); color: var(--lecture-text); }
+        .pill-practice { background: var(--practice-bg); color: var(--practice-text); }
+
+        .table-container {
+            background: var(--card); border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.03);
+            overflow-x: auto; border: 1px solid #e2e8f0;
+        }
+        table { width: 100%; border-collapse: collapse; min-width: 550px; }
+        th, td { border: 1px solid #e2e8f0; padding: 11px 14px; text-align: center; font-size: 14px; }
+        th { background: #f8fafc; font-weight: 600; color: #334155; position: relative; }
+        td:first-child, th:first-child {
+            text-align: left; position: sticky; left: 0; background: var(--card); z-index: 2; min-width: 230px;
+        }
+        th:first-child { background: #f8fafc; z-index: 3; }
+
+        .date-header { cursor: pointer; min-width: 105px; transition: background 0.15s; }
+        .date-header:hover { background: #e0f2fe; }
+        .note-indicator {
+            display: block; font-size: 11px; color: var(--primary); font-weight: 500;
+            max-width: 95px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 4px auto 0;
+        }
+
+        .grade-input {
+            width: 60px; text-align: center; padding: 7px; border: 1px solid transparent;
+            border-radius: 8px; font-weight: 600; font-size: 14px; background: transparent; transition: all 0.15s;
+        }
+        .grade-input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15); }
+
+        .g-5 { color: #166534; background: #dcfce7; }
+        .g-4 { color: #1e40af; background: #dbeafe; }
+        .g-3 { color: #9a3412; background: #ffedd5; }
+        .g-2 { color: #991b1b; background: #fee2e2; }
+        .g-n { color: #991b1b; background: #fee2e2; font-weight: 700; }
+        .g-u { color: #1e40af; background: #e0f2fe; font-weight: 600; }
+
+        .student-row-ctrl { display: flex; justify-content: space-between; align-items: center; }
+        .del-icon {
+            color: var(--muted); cursor: pointer; font-size: 16px; padding: 4px 8px;
+            border-radius: 6px; border: none; background: transparent; transition: 0.15s;
+        }
+        .del-icon:hover { color: var(--danger); background: #fee2e2; }
+
+        .student-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+        .subj-card { background: var(--card); border-radius: 16px; padding: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+        .subj-card h3 { margin: 0 0 16px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; color: #1e3a8a; }
+        .student-sub-row { margin-bottom: 14px; }
+        .student-sub-row:last-child { margin-bottom: 0; }
+        .student-sub-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; display: block; }
+        .grades-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        .grade-chip {
+            border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px;
+            min-width: 78px; text-align: center; background: #f8fafc; transition: 0.15s;
+        }
+        .grade-chip:hover { border-color: var(--primary); }
+        .grade-chip .d { font-size: 11px; color: var(--muted); font-weight: 600; }
+        .grade-chip .v { font-size: 16px; font-weight: 700; margin: 5px 0; border-radius: 6px; padding: 2px 0; }
+        .grade-chip .n { font-size: 10px; color: var(--primary); max-width: 82px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+        }
+        .modal {
+            background: var(--card); padding: 28px; border-radius: 20px; width: 100%; max-width: 480px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); border: 1px solid #e2e8f0;
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal h3 { margin: 0 0 20px; color: #1e3a8a; font-size: 20px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+        .subgroup-list { margin-top: 12px; }
+        .subgroup-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+            background: #f8fafc;
+        }
+        .subgroup-item .name { font-weight: 600; }
+        .subgroup-item .count { font-size: 12px; color: var(--muted); }
+        .student-check-list {
+            max-height: 220px; overflow-y: auto; border: 1px solid var(--border);
+            border-radius: 10px; padding: 8px; margin-top: 8px;
+        }
+        .student-check {
+            display: flex; align-items: center; gap: 10px; padding: 8px 6px;
+            border-radius: 6px; cursor: pointer;
+        }
+        .student-check:hover { background: var(--primary-light); }
+        .student-check input { width: auto; margin: 0; }
+
+        .empty-hint { text-align: center; color: var(--muted); padding: 24px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">
+    <div class="login-card">
+        <h1>Группа 584</h1>
+        <p id="welcome-subtitle">Подключение к облачной базе...</p>
+
+        <div id="login-forms" style="display: none;">
+            <div class="tabs">
+                <button class="tab active" onclick="switchLoginTab('student')">Я студент</button>
+                <button class="tab" onclick="switchLoginTab('admin')">Я староста</button>
+            </div>
+
+            <div id="student-login-form">
+                <div class="form-group">
+                    <label>Введите вашу фамилию</label>
+                    <input type="text" id="student-lastname" placeholder="Например: Иванов" onkeydown="if(event.key==='Enter') loginStudent()">
+                </div>
+                <button class="btn" onclick="loginStudent()">Войти в журнал</button>
+            </div>
+
+            <div id="admin-login-form" style="display: none;">
+                <div class="form-group">
+                    <label>Пароль старосты</label>
+                    <input type="password" id="admin-password" placeholder="Введите пароль" onkeydown="if(event.key==='Enter') loginAdmin()">
+                </div>
+                <button class="btn" onclick="loginAdmin()">Войти в систему</button>
+            </div>
+        </div>
+
+        <div class="error-msg" id="login-error"></div>
+    </div>
+</div>
+
+<div id="app-screen">
+    <header>
+        <div class="header-title">
+            <h2>Электронный журнал 584</h2>
+            <span class="badge" id="role-badge">Староста</span>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button class="btn btn-outline btn-sm" onclick="logout()">Выйти</button>
+        </div>
+    </header>
+
+    <div id="admin-view" style="display: none;">
+        <div class="subjects-bar" id="subjects-bar"></div>
+
+        <div class="admin-panel" id="admin-controls">
+            <div>
+                <strong id="current-subject-title" style="font-size: 16px; color: #1e3a8a;">Предмет</strong>
+                <span id="current-subject-mode" style="font-size: 13px; color: var(--muted); margin-left: 8px;"></span>
+            </div>
+            <div class="admin-actions">
+                <button class="btn btn-sm" id="btn-add-lecture" onclick="openAddDateModal('lecture')">+ Дата лекции</button>
+                <button class="btn btn-sm" id="btn-add-practice" onclick="openAddDateModal('practice')">+ Дата практики</button>
+                <button class="btn btn-outline btn-sm" onclick="openAddStudentModal()">+ Студент</button>
+                <button class="btn btn-outline btn-sm" onclick="openSubgroupsModal()">Подгруппы</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCurrentSubject()">Удалить предмет</button>
+            </div>
+        </div>
+
+        <div class="filter-bar" id="subgroup-filter-bar" style="display: none;">
+            <label>Показать:</label>
+            <button class="filter-chip active" data-sg="all" onclick="setSubgroupFilter('all')">Все студенты</button>
+            <!-- подгруппы добавятся динамически -->
+        </div>
+
+        <div id="journal-sections-wrapper"></div>
+    </div>
+
+    <div id="student-view" style="display: none;">
+        <p style="color: var(--muted); margin-top: 0; margin-bottom: 20px; font-weight: 500;">Ваша личная успеваемость и посещаемость по всем дисциплинам группы 584.</p>
+        <div class="student-card-grid" id="student-grades-grid"></div>
+    </div>
+</div>
+
+<!-- Модалки -->
+<div class="modal-backdrop" id="modal-subject">
+    <div class="modal">
+        <h3>Новая дисциплина</h3>
+        <div class="form-group">
+            <label>Название предмета</label>
+            <input type="text" id="new-subj-name" placeholder="Например: Высшая математика">
+        </div>
+        <div class="form-group">
+            <label>Формат занятий</label>
+            <select id="new-subj-mode">
+                <option value="both">Лекции и Практика</option>
+                <option value="practice">Только Практика</option>
+            </select>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline btn-sm" onclick="closeModals()">Отмена</button>
+            <button class="btn btn-sm" onclick="saveNewSubject()">Создать</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modal-student">
+    <div class="modal">
+        <h3>Добавить студента</h3>
+        <div class="form-group">
+            <label>Фамилия и Имя</label>
+            <input type="text" id="new-student-name" placeholder="Например: Смирнов Алексей">
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline btn-sm" onclick="closeModals()">Отмена</button>
+            <button class="btn btn-sm" onclick="saveNewStudent()">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modal-date">
+    <div class="modal">
+        <h3 id="date-modal-title">Занятие</h3>
+        <input type="hidden" id="edit-date-id">
+        <div class="form-group">
+            <label>Дата занятия</label>
+            <input type="date" id="date-value">
+        </div>
+        <div class="form-group" id="date-type-group">
+            <label>Раздел журнала</label>
+            <select id="date-type">
+                <option value="lecture">Лекция</option>
+                <option value="practice">Практика</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Примечание к дате (тема, контрольная и т.д.)</label>
+            <input type="text" id="date-note" placeholder="Например: Лабораторная №1 (подгр. 1)">
+        </div>
+        <div class="modal-footer" style="justify-content: space-between;">
+            <button class="btn btn-danger btn-sm" id="btn-delete-date" onclick="deleteDateColumn()" style="display:none;">Удалить дату</button>
+            <div style="display:flex; gap:8px; margin-left:auto;">
+                <button class="btn btn-outline btn-sm" onclick="closeModals()">Отмена</button>
+                <button class="btn btn-sm" onclick="saveDateColumn()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modal-subgroups">
+    <div class="modal">
+        <h3>Подгруппы</h3>
+        <p style="margin:0 0 16px; font-size:13px; color:var(--muted);">Создавайте подгруппы для дисциплин, которые идут по маленьким группам. В журнале можно фильтровать студентов по подгруппе.</p>
+
+        <div id="subgroups-list" class="subgroup-list"></div>
+
+        <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border);">
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label>Новая подгруппа</label>
+                <input type="text" id="new-subgroup-name" placeholder="Например: Подгруппа 1 / А">
+            </div>
+            <button class="btn btn-sm" onclick="createSubgroup()" style="width:auto;">+ Создать подгруппу</button>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-outline btn-sm" onclick="closeModals()">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="modal-edit-subgroup">
+    <div class="modal">
+        <h3 id="edit-sg-title">Редактировать подгруппу</h3>
+        <input type="hidden" id="edit-sg-id">
+        <div class="form-group">
+            <label>Название</label>
+            <input type="text" id="edit-sg-name">
+        </div>
+        <div class="form-group">
+            <label>Студенты в подгруппе</label>
+            <div class="student-check-list" id="edit-sg-students"></div>
+        </div>
+        <div class="modal-footer" style="justify-content: space-between;">
+            <button class="btn btn-danger btn-sm" onclick="deleteSubgroup()">Удалить</button>
+            <div style="display:flex; gap:8px;">
+                <button class="btn btn-outline btn-sm" onclick="closeModals()">Отмена</button>
+                <button class="btn btn-sm" onclick="saveSubgroupEdit()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ADMIN_PASS = "MAXCARTA360";
+    const SESSION_KEY = "journal_session_584_v2";
+
+    let dbData = null;
+    let currentUser = null;
+    let activeSubjectId = null;
+    let activeSubgroupFilter = "all"; // "all" или id подгруппы
+
+    const defaultData = {
+        students: [
+            { id: "st1", name: "Иванов Дмитрий" },
+            { id: "st2", name: "Петрова Анна" },
+            { id: "st3", name: "Сидоров Максим" },
+            { id: "st4", name: "Козлова Елена" }
+        ],
+        subgroups: [
+            { id: "sg1", name: "Подгруппа 1", studentIds: ["st1", "st3"] },
+            { id: "sg2", name: "Подгруппа 2", studentIds: ["st2", "st4"] }
+        ],
+        subjects: [
+            {
+                id: "sub1",
+                name: "Программирование",
+                mode: "both",
+                dates: [
+                    { id: "d1", date: "2026-11-10", type: "lecture", note: "Введение в ООП" },
+                    { id: "d1_2", date: "2026-11-17", type: "lecture", note: "Наследование" },
+                    { id: "d2", date: "2026-11-12", type: "practice", note: "Лаб. работа №1" },
+                    { id: "d3", date: "2026-11-19", type: "practice", note: "Защита лабы" }
+                ],
+                grades: {
+                    "st1_d1": "у", "st1_d1_2": "+", "st1_d2": "5", "st1_d3": "5",
+                    "st2_d1": "+", "st2_d1_2": "+", "st2_d2": "4", "st2_d3": "н",
+                    "st3_d1": "н", "st3_d1_2": "+", "st3_d2": "3", "st3_d3": "4",
+                    "st4_d1": "+", "st4_d1_2": "у", "st4_d2": "5", "st4_d3": "у"
+                }
+            },
+            {
+                id: "sub2",
+                name: "Физкультура",
+                mode: "practice",
+                dates: [
+                    { id: "d4", date: "2026-11-11", type: "practice", note: "Нормативы: бег" },
+                    { id: "d5", date: "2026-11-18", type: "practice", note: "Волейбол" }
+                ],
+                grades: {
+                    "st1_d4": "зач", "st1_d5": "зач",
+                    "st2_d4": "зач", "st2_d5": "у",
+                    "st3_d4": "н",   "st3_d5": "зач",
+                    "st4_d4": "зач", "st4_d5": "зач"
+                }
+            }
+        ]
+    };
+
+    // === Firebase init ===
+    window.initAppAfterFirebase = function() {
+        const dbRef = window.FB_ref(window.FB_DB, 'journal584');
+
+        window.FB_onValue(dbRef, (snapshot) => {
+            const val = snapshot.val();
+            if (val && val.students) {
+                dbData = val;
+                // миграция: если нет subgroups — добавим
+                if (!dbData.subgroups) dbData.subgroups = [];
+            } else {
+                dbData = JSON.parse(JSON.stringify(defaultData));
+                window.FB_set(dbRef, dbData);
+            }
+
+            if (!activeSubjectId && dbData.subjects && dbData.subjects.length > 0) {
+                activeSubjectId = dbData.subjects[0].id;
+            }
+
+            checkSessionAndRender();
+        }, (err) => {
+            console.error("Firebase error:", err);
+            document.getElementById('welcome-subtitle').textContent = "Ошибка подключения к базе. Проверьте правила Firebase.";
+            // fallback на демо
+            dbData = JSON.parse(JSON.stringify(defaultData));
+            document.getElementById('login-forms').style.display = 'block';
+        });
+    };
+
+    function updateCloudDB() {
+        if (!window.FB_DB) return;
+        const dbRef = window.FB_ref(window.FB_DB, 'journal584');
+        window.FB_set(dbRef, dbData);
+    }
+
+    function checkSessionAndRender() {
+        const saved = sessionStorage.getItem(SESSION_KEY);
+        if (saved) {
+            try {
+                currentUser = JSON.parse(saved);
+                enterApp();
+                return;
+            } catch (e) {}
+        }
+        document.getElementById('welcome-subtitle').textContent = "Электронный журнал успеваемости";
+        document.getElementById('login-forms').style.display = 'block';
+    }
+
+    function switchLoginTab(tab) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('login-error').style.display = 'none';
+        if (tab === 'student') {
+            document.querySelectorAll('.tab')[0].classList.add('active');
+            document.getElementById('student-login-form').style.display = 'block';
+            document.getElementById('admin-login-form').style.display = 'none';
+        } else {
+            document.querySelectorAll('.tab')[1].classList.add('active');
+            document.getElementById('student-login-form').style.display = 'none';
+            document.getElementById('admin-login-form').style.display = 'block';
+        }
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('login-error');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function loginStudent() {
+        const input = document.getElementById('student-lastname').value.trim().toLowerCase();
+        if (!input) return showError("Введите фамилию");
+
+        const found = (dbData.students || []).find(s => {
+            const parts = s.name.toLowerCase().split(/\s+/);
+            return parts[0] === input || s.name.toLowerCase() === input || s.name.toLowerCase().includes(input);
+        });
+
+        if (!found) return showError("Студент с такой фамилией не найден в группе 584");
+
+        currentUser = { role: 'student', student: found };
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+        enterApp();
+    }
+
+    function loginAdmin() {
+        const pass = document.getElementById('admin-password').value;
+        if (pass === ADMIN_PASS) {
+            currentUser = { role: 'admin' };
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentUser));
+            enterApp();
+        } else {
+            showError("Неверный пароль старосты");
+        }
+    }
+
+    function enterApp() {
+        document.getElementById('loading-screen').style.display = 'none';
+        document.getElementById('app-screen').style.display = 'block';
+
+        if (currentUser.role === 'admin') {
+            document.getElementById('role-badge').textContent = "Режим старосты";
+            document.getElementById('admin-view').style.display = 'block';
+            document.getElementById('student-view').style.display = 'none';
+            renderAdmin();
+        } else {
+            document.getElementById('role-badge').textContent = "Студент: " + currentUser.student.name;
+            document.getElementById('admin-view').style.display = 'none';
+            document.getElementById('student-view').style.display = 'block';
+            renderStudentView();
+        }
+    }
+
+    function logout() {
+        sessionStorage.removeItem(SESSION_KEY);
+        currentUser = null;
+        document.getElementById('student-lastname').value = '';
+        document.getElementById('admin-password').value = '';
+        document.getElementById('login-error').style.display = 'none';
+        document.getElementById('app-screen').style.display = 'none';
+        document.getElementById('loading-screen').style.display = 'flex';
+        document.getElementById('login-forms').style.display = 'block';
+        document.getElementById('welcome-subtitle').textContent = "Электронный журнал успеваемости";
+    }
+
+    function formatDateShort(iso) {
+        if (!iso) return "";
+        const [y, m, d] = iso.split('-');
+        return `${d}.${m}`;
+    }
+
+    function getGradeClass(val) {
+        const v = String(val || '').trim().toLowerCase();
+        if (v === '5' || v === '+' || v === 'зач') return 'g-5';
+        if (v === '4') return 'g-4';
+        if (v === '3') return 'g-3';
+        if (v === '2') return 'g-2';
+        if (v === 'н') return 'g-n';
+        if (v === 'у' || v.startsWith('у-')) return 'g-u';
+        return '';
+    }
+
+    function getFilteredStudents() {
+        const all = dbData.students || [];
+        if (activeSubgroupFilter === "all") return all;
+        const sg = (dbData.subgroups || []).find(s => s.id === activeSubgroupFilter);
+        if (!sg) return all;
+        return all.filter(st => (sg.studentIds || []).includes(st.id));
+    }
+
+    function buildTableHtml(currentSub, datesList, emptyText) {
+        const students = getFilteredStudents();
+        let html = '<div class="table-container"><table><thead><tr><th>ФИО Студента</th>';
+        datesList.forEach(d => {
+            const noteHtml = d.note
+                ? `<span class="note-indicator" title="${d.note}">📝 ${d.note}</span>`
+                : '<span class="note-indicator">+ заметка</span>';
+            html += `<th class="date-header" onclick="openEditDateModal('${d.id}')" title="Изменить дату или примечание">
+                        <div>${formatDateShort(d.date)}</div>
+                        ${noteHtml}
+                     </th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        if (students.length === 0) {
+            html += `<tr><td colspan="${datesList.length + 1}" class="empty-hint">${activeSubgroupFilter === "all" ? "Список студентов пуст" : "В этой подгруппе нет студентов"}</td></tr>`;
+        } else {
+            students.forEach((st, idx) => {
+                html += `<tr>
+                    <td>
+                        <div class="student-row-ctrl">
+                            <span><strong>${idx + 1}.</strong> ${st.name}</span>
+                            <button class="del-icon" title="Удалить студента" onclick="deleteStudent('${st.id}')">✕</button>
+                        </div>
+                    </td>`;
+                if (datesList.length === 0) {
+                    html += `<td style="color:var(--muted); font-size:13px;">${emptyText}</td>`;
+                } else {
+                    datesList.forEach(d => {
+                        const key = `${st.id}_${d.id}`;
+                        const val = (currentSub.grades && currentSub.grades[key]) || '';
+                        const colorClass = getGradeClass(val);
+                        html += `<td>
+                            <input class="grade-input ${colorClass}"
+                                   value="${val}"
+                                   maxlength="12"
+                                   placeholder="—"
+                                   onchange="updateGrade('${currentSub.id}', '${key}', this)">
+                        </td>`;
+                    });
+                }
+                html += '</tr>';
+            });
+        }
+
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    function renderSubgroupFilter() {
+        const bar = document.getElementById('subgroup-filter-bar');
+        const subgroups = dbData.subgroups || [];
+        if (subgroups.length === 0) {
+            bar.style.display = 'none';
+            return;
+        }
+        bar.style.display = 'flex';
+        // оставляем кнопку "Все" и пересоздаём остальные
+        bar.innerHTML = `<label>Показать:</label>
+            <button class="filter-chip ${activeSubgroupFilter === 'all' ? 'active' : ''}" data-sg="all" onclick="setSubgroupFilter('all')">Все студенты</button>`;
+        subgroups.forEach(sg => {
+            const count = (sg.studentIds || []).length;
+            const btn = document.createElement('button');
+            btn.className = 'filter-chip subgroup' + (activeSubgroupFilter === sg.id ? ' active' : '');
+            btn.textContent = `${sg.name} (${count})`;
+            btn.onclick = () => setSubgroupFilter(sg.id);
+            bar.appendChild(btn);
+        });
+    }
+
+    function setSubgroupFilter(id) {
+        activeSubgroupFilter = id;
+        renderAdmin();
+    }
+
+    function renderAdmin() {
+        const bar = document.getElementById('subjects-bar');
+        bar.innerHTML = '';
+
+        (dbData.subjects || []).forEach(sub => {
+            const btn = document.createElement('button');
+            btn.className = 'subj-btn' + (sub.id === activeSubjectId ? ' active' : '');
+            const modeLabel = sub.mode === 'practice' ? 'Практика' : 'Лек + Прак';
+            btn.innerHTML = `${sub.name} <span class="subj-type-tag">${modeLabel}</span>`;
+            btn.onclick = () => { activeSubjectId = sub.id; activeSubgroupFilter = "all"; renderAdmin(); };
+            bar.appendChild(btn);
+        });
+
+        const addSubBtn = document.createElement('button');
+        addSubBtn.className = 'subj-btn';
+        addSubBtn.style.borderStyle = 'dashed';
+        addSubBtn.textContent = '+ Добавить дисциплину';
+        addSubBtn.onclick = () => {
+            document.getElementById('new-subj-name').value = '';
+            document.getElementById('modal-subject').style.display = 'flex';
+        };
+        bar.appendChild(addSubBtn);
+
+        const currentSub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        const controls = document.getElementById('admin-controls');
+        const wrapper = document.getElementById('journal-sections-wrapper');
+
+        if (!currentSub) {
+            controls.style.display = 'none';
+            document.getElementById('subgroup-filter-bar').style.display = 'none';
+            wrapper.innerHTML = '<div class="table-container"><p class="empty-hint">Нет дисциплин. Добавьте первую.</p></div>';
+            return;
+        }
+
+        controls.style.display = 'flex';
+        document.getElementById('current-subject-title').textContent = currentSub.name;
+        document.getElementById('current-subject-mode').textContent =
+            currentSub.mode === 'practice' ? '(Формат: только практика)' : '(Формат: лекции и практика)';
+
+        document.getElementById('btn-add-lecture').style.display = currentSub.mode === 'practice' ? 'none' : 'inline-block';
+
+        renderSubgroupFilter();
+
+        if (!currentSub.dates) currentSub.dates = [];
+        currentSub.dates.sort((a, b) => a.date.localeCompare(b.date));
+
+        let sectionsHtml = '';
+
+        if (currentSub.mode === 'both') {
+            const lectureDates = currentSub.dates.filter(d => d.type === 'lecture');
+            const practiceDates = currentSub.dates.filter(d => d.type !== 'lecture');
+
+            sectionsHtml += `
+                <div class="section-block">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <span>Лекции</span>
+                            <span class="section-pill pill-lecture">${lectureDates.length} зан.</span>
+                        </div>
+                    </div>
+                    ${buildTableHtml(currentSub, lectureDates, 'Нет дат лекций')}
+                </div>
+            `;
+
+            sectionsHtml += `
+                <div class="section-block">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <span>Практика</span>
+                            <span class="section-pill pill-practice">${practiceDates.length} зан.</span>
+                        </div>
+                    </div>
+                    ${buildTableHtml(currentSub, practiceDates, 'Нет дат практик')}
+                </div>
+            `;
+        } else {
+            sectionsHtml += `
+                <div class="section-block">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <span>Практические занятия</span>
+                            <span class="section-pill pill-practice">${currentSub.dates.length} зан.</span>
+                        </div>
+                    </div>
+                    ${buildTableHtml(currentSub, currentSub.dates, 'Нет дат практик')}
+                </div>
+            `;
+        }
+
+        wrapper.innerHTML = sectionsHtml;
+    }
+
+    function updateGrade(subId, key, inputEl) {
+        const sub = (dbData.subjects || []).find(s => s.id === subId);
+        if (!sub) return;
+        if (!sub.grades) sub.grades = {};
+        const val = inputEl.value.trim();
+        if (val) {
+            sub.grades[key] = val;
+        } else {
+            delete sub.grades[key];
+        }
+        updateCloudDB();
+        inputEl.className = 'grade-input ' + getGradeClass(val);
+    }
+
+    function saveNewSubject() {
+        const name = document.getElementById('new-subj-name').value.trim();
+        const mode = document.getElementById('new-subj-mode').value;
+        if (!name) return alert("Введите название дисциплины");
+
+        const today = new Date().toISOString().split('T')[0];
+        const initialDates = mode === 'both'
+            ? [
+                { id: 'd_l_' + Date.now(), date: today, type: 'lecture', note: '' },
+                { id: 'd_p_' + (Date.now() + 1), date: today, type: 'practice', note: '' }
+              ]
+            : [
+                { id: 'd_p_' + Date.now(), date: today, type: 'practice', note: '' }
+              ];
+
+        const newSub = {
+            id: 'sub_' + Date.now(),
+            name,
+            mode,
+            dates: initialDates,
+            grades: {}
+        };
+        if (!dbData.subjects) dbData.subjects = [];
+        dbData.subjects.push(newSub);
+        activeSubjectId = newSub.id;
+        activeSubgroupFilter = "all";
+        updateCloudDB();
+        closeModals();
+        renderAdmin();
+    }
+
+    function deleteCurrentSubject() {
+        const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        if (!sub) return;
+        if (confirm(`Удалить дисциплину «${sub.name}»?`)) {
+            dbData.subjects = dbData.subjects.filter(s => s.id !== activeSubjectId);
+            activeSubjectId = dbData.subjects.length ? dbData.subjects[0].id : null;
+            activeSubgroupFilter = "all";
+            updateCloudDB();
+            renderAdmin();
+        }
+    }
+
+    function openAddStudentModal() {
+        document.getElementById('new-student-name').value = '';
+        document.getElementById('modal-student').style.display = 'flex';
+    }
+
+    function saveNewStudent() {
+        const name = document.getElementById('new-student-name').value.trim();
+        if (!name) return alert("Введите Фамилию и Имя");
+        if (!dbData.students) dbData.students = [];
+        dbData.students.push({ id: 'st_' + Date.now(), name });
+        updateCloudDB();
+        closeModals();
+        renderAdmin();
+    }
+
+    function deleteStudent(stId) {
+        const st = (dbData.students || []).find(s => s.id === stId);
+        if (!st) return;
+        if (confirm(`Удалить студента «${st.name}»?`)) {
+            dbData.students = dbData.students.filter(s => s.id !== stId);
+            // убрать из всех подгрупп
+            (dbData.subgroups || []).forEach(sg => {
+                sg.studentIds = (sg.studentIds || []).filter(id => id !== stId);
+            });
+            updateCloudDB();
+            renderAdmin();
+        }
+    }
+
+    function openAddDateModal(defaultType = 'practice') {
+        const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        if (!sub) return;
+        document.getElementById('date-modal-title').textContent = defaultType === 'lecture' ? "Добавить лекцию" : "Добавить практику";
+        document.getElementById('edit-date-id').value = "";
+        document.getElementById('date-value').value = new Date().toISOString().split('T')[0];
+        document.getElementById('date-note').value = "";
+        document.getElementById('btn-delete-date').style.display = "none";
+
+        const typeGroup = document.getElementById('date-type-group');
+        typeGroup.style.display = sub.mode === 'practice' ? 'none' : 'block';
+        document.getElementById('date-type').value = sub.mode === 'practice' ? 'practice' : defaultType;
+        document.getElementById('modal-date').style.display = 'flex';
+    }
+
+    function openEditDateModal(dateId) {
+        const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        const dObj = (sub.dates || []).find(d => d.id === dateId);
+        if (!dObj) return;
+
+        document.getElementById('date-modal-title').textContent = "Редактировать дату и примечание";
+        document.getElementById('edit-date-id').value = dObj.id;
+        document.getElementById('date-value').value = dObj.date;
+        document.getElementById('date-note').value = dObj.note || "";
+        document.getElementById('btn-delete-date').style.display = "inline-block";
+
+        const typeGroup = document.getElementById('date-type-group');
+        if (sub.mode === 'practice') {
+            typeGroup.style.display = 'none';
+        } else {
+            typeGroup.style.display = 'block';
+            document.getElementById('date-type').value = dObj.type;
+        }
+        document.getElementById('modal-date').style.display = 'flex';
+    }
+
+    function saveDateColumn() {
+        const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        if (!sub) return;
+
+        const dateVal = document.getElementById('date-value').value;
+        const typeVal = sub.mode === 'practice' ? 'practice' : document.getElementById('date-type').value;
+        const noteVal = document.getElementById('date-note').value.trim();
+        const editId = document.getElementById('edit-date-id').value;
+
+        if (!dateVal) return alert("Выберите дату");
+
+        if (!sub.dates) sub.dates = [];
+
+        if (editId) {
+            const dObj = sub.dates.find(d => d.id === editId);
+            if (dObj) {
+                dObj.date = dateVal;
+                dObj.type = typeVal;
+                dObj.note = noteVal;
+            }
+        } else {
+            sub.dates.push({
+                id: 'd_' + Date.now(),
+                date: dateVal,
+                type: typeVal,
+                note: noteVal
+            });
+        }
+
+        updateCloudDB();
+        closeModals();
+        renderAdmin();
+    }
+
+    function deleteDateColumn() {
+        const sub = (dbData.subjects || []).find(s => s.id === activeSubjectId);
+        const editId = document.getElementById('edit-date-id').value;
+        if (!sub || !editId) return;
+
+        if (confirm("Удалить этот столбец с датой и все оценки за этот день?")) {
+            sub.dates = (sub.dates || []).filter(d => d.id !== editId);
+            updateCloudDB();
+            closeModals();
+            renderAdmin();
+        }
+    }
+
+    // === Подгруппы ===
+    function openSubgroupsModal() {
+        renderSubgroupsList();
+        document.getElementById('new-subgroup-name').value = '';
+        document.getElementById('modal-subgroups').style.display = 'flex';
+    }
+
+    function renderSubgroupsList() {
+        const list = document.getElementById('subgroups-list');
+        const subgroups = dbData.subgroups || [];
+        if (subgroups.length === 0) {
+            list.innerHTML = '<p class="empty-hint" style="padding:12px;">Пока нет подгрупп. Создайте первую.</p>';
+            return;
+        }
+        list.innerHTML = subgroups.map(sg => {
+            const count = (sg.studentIds || []).length;
+            return `
+                <div class="subgroup-item">
+                    <div>
+                        <div class="name">${sg.name}</div>
+                        <div class="count">${count} студент${count === 1 ? '' : (count > 1 && count < 5 ? 'а' : 'ов')}</div>
+                    </div>
+                    <button class="btn btn-outline btn-sm" onclick="openEditSubgroup('${sg.id}')">Изменить</button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function createSubgroup() {
+        const name = document.getElementById('new-subgroup-name').value.trim();
+        if (!name) return alert("Введите название подгруппы");
+        if (!dbData.subgroups) dbData.subgroups = [];
+        dbData.subgroups.push({
+            id: 'sg_' + Date.now(),
+            name,
+            studentIds: []
+        });
+        updateCloudDB();
+        document.getElementById('new-subgroup-name').value = '';
+        renderSubgroupsList();
+        renderAdmin(); // обновить фильтр
+    }
+
+    function openEditSubgroup(sgId) {
+        const sg = (dbData.subgroups || []).find(s => s.id === sgId);
+        if (!sg) return;
+        document.getElementById('edit-sg-id').value = sg.id;
+        document.getElementById('edit-sg-name').value = sg.name;
+        document.getElementById('edit-sg-title').textContent = `Подгруппа: ${sg.name}`;
+
+        const container = document.getElementById('edit-sg-students');
+        const students = dbData.students || [];
+        if (students.length === 0) {
+            container.innerHTML = '<p class="empty-hint">Сначала добавьте студентов</p>';
+        } else {
+            container.innerHTML = students.map(st => {
+                const checked = (sg.studentIds || []).includes(st.id) ? 'checked' : '';
+                return `
+                    <label class="student-check">
+                        <input type="checkbox" value="${st.id}" ${checked}>
+                        <span>${st.name}</span>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        closeModals();
+        document.getElementById('modal-edit-subgroup').style.display = 'flex';
+    }
+
+    function saveSubgroupEdit() {
+        const sgId = document.getElementById('edit-sg-id').value;
+        const sg = (dbData.subgroups || []).find(s => s.id === sgId);
+        if (!sg) return;
+
+        const name = document.getElementById('edit-sg-name').value.trim();
+        if (!name) return alert("Название не может быть пустым");
+        sg.name = name;
+
+        const checks = document.querySelectorAll('#edit-sg-students input[type="checkbox"]');
+        sg.studentIds = [];
+        checks.forEach(ch => {
+            if (ch.checked) sg.studentIds.push(ch.value);
+        });
+
+        updateCloudDB();
+        closeModals();
+        openSubgroupsModal();
+        renderAdmin();
+    }
+
+    function deleteSubgroup() {
+        const sgId = document.getElementById('edit-sg-id').value;
+        if (!confirm("Удалить эту подгруппу? (студенты останутся в группе)")) return;
+        dbData.subgroups = (dbData.subgroups || []).filter(s => s.id !== sgId);
+        if (activeSubgroupFilter === sgId) activeSubgroupFilter = "all";
+        updateCloudDB();
+        closeModals();
+        openSubgroupsModal();
+        renderAdmin();
+    }
+
+    function closeModals() {
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
+    }
+
+    function buildStudentChips(stId, sub, datesList) {
+        if (datesList.length === 0) {
+            return '<span style="font-size:13px; color:var(--muted);">Занятий пока нет</span>';
+        }
+        return datesList.map(d => {
+            const val = (sub.grades && sub.grades[`${stId}_${d.id}`]) || '—';
+            const colorClass = getGradeClass(val);
+            const noteText = d.note ? d.note : '—';
+            return `
+                <div class="grade-chip" title="${d.note ? 'Примечание: ' + d.note : ''}">
+                    <div class="d">${formatDateShort(d.date)}</div>
+                    <div class="v ${colorClass}">${val}</div>
+                    <div class="n">${noteText}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderStudentView() {
+        const grid = document.getElementById('student-grades-grid');
+        grid.innerHTML = '';
+        const stId = currentUser.student.id;
+
+        if (!dbData.subjects || dbData.subjects.length === 0) {
+            grid.innerHTML = '<p style="color:var(--muted);">Пока не добавлено ни одной дисциплины.</p>';
+            return;
+        }
+
+        dbData.subjects.forEach(sub => {
+            if (!sub.dates) sub.dates = [];
+            sub.dates.sort((a, b) => a.date.localeCompare(b.date));
+            const card = document.createElement('div');
+            card.className = 'subj-card';
+
+            const modeText = sub.mode === 'practice' ? 'Только практика' : 'Лекции и практика';
+            let bodyHtml = '';
+
+            if (sub.mode === 'both') {
+                const lectures = sub.dates.filter(d => d.type === 'lecture');
+                const practices = sub.dates.filter(d => d.type !== 'lecture');
+                bodyHtml = `
+                    <div class="student-sub-row">
+                        <span class="student-sub-label">Лекции</span>
+                        <div class="grades-list">${buildStudentChips(stId, sub, lectures)}</div>
+                    </div>
+                    <div class="student-sub-row">
+                        <span class="student-sub-label">Практика</span>
+                        <div class="grades-list">${buildStudentChips(stId, sub, practices)}</div>
+                    </div>
+                `;
+            } else {
+                bodyHtml = `
+                    <div class="student-sub-row">
+                        <span class="student-sub-label">Практика</span>
+                        <div class="grades-list">${buildStudentChips(stId, sub, sub.dates)}</div>
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <h3>
+                    <span>${sub.name}</span>
+                    <span class="badge" style="font-size:11px;">${modeText}</span>
+                </h3>
+                ${bodyHtml}
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    // Telegram WebApp (если открыто внутри Telegram)
+    try {
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
+    } catch (e) {}
+</script>
+</body>
+</html>
